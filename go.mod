@@ -1,4 +1,4 @@
-module github.com/bep/noname1
+module github.com/bep/gitjoin
 
 go 1.24.0
 
