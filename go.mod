@@ -1,4 +1,4 @@
-module github.com/bep/gomaintemplate
+module github.com/bep/noname1
 
 go 1.24.0
 
