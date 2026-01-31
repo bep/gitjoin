@@ -9,6 +9,8 @@ stderr 'Cloned: 2 repos'
 ! stderr 'Updated'
 ! stderr 'Warnings'
 
+cmp .gitignore golden/gitignore1.txt
+
 tree gocode
 cp stdout gocodetree.txt
 cmp gocodetree.txt golden/tree1.txt
@@ -34,6 +36,8 @@ tree gocode
 cp stdout gocodetree.txt
 cmp gocodetree.txt golden/tree2.txt
 
+cmp .gitignore golden/gitignore2.txt
+
 -- gocode/libs/gitjoin.txt --
 github.com/bep/lazycache
 github.com/bep/debounce
@@ -51,3 +55,14 @@ github.com/bep/debounce
   └─git:firstupdotenv/
 -- testdata/gitjoin1.txt --
 github.com/bep/firstupdotenv
+-- golden/gitignore1.txt --
+# Managed by gitjoin - do not edit this section
+gocode/libs/debounce/
+gocode/libs/lazycache/
+# End gitjoin managed section
+-- golden/gitignore2.txt --
+# Managed by gitjoin - do not edit this section
+gocode/libs/debounce/
+gocode/libs/lazycache/
+gocode/main/firstupdotenv/
+# End gitjoin managed section

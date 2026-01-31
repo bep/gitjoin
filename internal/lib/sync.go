@@ -9,6 +9,7 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"sort"
 	"strings"
 )
 
@@ -220,6 +221,10 @@ func (s *Syncer) run() (Result, error) {
 		}
 	}
 
+	if err := s.updateGitignore(expected); err != nil {
+		result.Warnings = append(result.Warnings, "failed to update .gitignore: "+err.Error())
+	}
+
 	return result, nil
 }
 
@@ -324,4 +329,55 @@ func repoPathToURL(repoPath string) string {
 		return fmt.Sprintf("https://%s/%s.git", parts[0], parts[1])
 	}
 	return fmt.Sprintf("git@%s:%s.git", parts[0], parts[1])
+}
+
+const (
+	gitignoreStart = "# Managed by gitjoin - do not edit this section"
+	gitignoreEnd   = "# End gitjoin managed section"
+)
+
+func (s *Syncer) updateGitignore(repos map[string]string) error {
+	gitignorePath := filepath.Join(s.Cfg.Root, ".gitignore")
+
+	var paths []string
+	for localPath := range repos {
+		paths = append(paths, localPath+"/")
+	}
+	sort.Strings(paths)
+
+	var managed strings.Builder
+	managed.WriteString(gitignoreStart + "\n")
+	for _, p := range paths {
+		managed.WriteString(p + "\n")
+	}
+	managed.WriteString(gitignoreEnd + "\n")
+
+	existing, err := os.ReadFile(gitignorePath)
+	if err != nil && !os.IsNotExist(err) {
+		return err
+	}
+
+	var newContent string
+	if len(existing) == 0 {
+		newContent = managed.String()
+	} else {
+		content := string(existing)
+		startIdx := strings.Index(content, gitignoreStart)
+		endIdx := strings.Index(content, gitignoreEnd)
+
+		if startIdx >= 0 && endIdx > startIdx {
+			endIdx += len(gitignoreEnd)
+			if endIdx < len(content) && content[endIdx] == '\n' {
+				endIdx++
+			}
+			newContent = content[:startIdx] + managed.String() + content[endIdx:]
+		} else {
+			if !strings.HasSuffix(content, "\n") {
+				content += "\n"
+			}
+			newContent = content + "\n" + managed.String()
+		}
+	}
+
+	return os.WriteFile(gitignorePath, []byte(newContent), 0644)
 }
