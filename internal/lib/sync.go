@@ -5,12 +5,17 @@ package lib
 
 import (
 	"bufio"
+	"context"
 	"fmt"
 	"io"
 	"os"
 	"path/filepath"
+	"runtime"
 	"sort"
 	"strings"
+	"sync"
+
+	"github.com/bep/helpers/parahelpers"
 )
 
 type Syncer struct {
@@ -88,105 +93,26 @@ func (s *Syncer) printResult(r Result) {
 
 func (s *Syncer) run() (Result, error) {
 	var result Result
+	var mu sync.Mutex
+	var existing sync.Map
 
 	expected, err := s.collectExpectedRepos()
 	if err != nil {
 		return result, err
 	}
 
-	existing := make(map[string]bool)
+	numWorkers := max(4, runtime.NumCPU())
+	workers := parahelpers.New(numWorkers)
+	r, ctx := workers.Start(context.Background())
 
 	for localPath, repoPath := range expected {
-		fullPath := filepath.Join(s.Cfg.Root, localPath)
-		existing[localPath] = true
+		r.Run(func() error {
+			return s.processRepo(ctx, localPath, repoPath, &existing, &result, &mu)
+		})
+	}
 
-		if _, err := os.Stat(fullPath); os.IsNotExist(err) {
-			url := repoPathToURL(repoPath)
-			if err := clone(url, fullPath, s.out); err != nil {
-				return result, fmt.Errorf("clone %s: %w", localPath, err)
-			}
-			result.Cloned = append(result.Cloned, RepoResult{Path: localPath})
-			continue
-		}
-
-		repo := Repo{Path: fullPath}
-
-		if !repo.IsGitRepo() {
-			return result, fmt.Errorf("%s: not a git repo", localPath)
-		}
-
-		defaultBranch, err := repo.DefaultBranch()
-		if err != nil {
-			return result, fmt.Errorf("%s: get default branch: %w", localPath, err)
-		}
-
-		currentBranch, err := repo.CurrentBranch()
-		if err != nil {
-			return result, fmt.Errorf("%s: get current branch: %w", localPath, err)
-		}
-
-		dirty, err := repo.HasUncommittedChanges()
-		if err != nil {
-			return result, fmt.Errorf("%s: check uncommitted changes: %w", localPath, err)
-		}
-
-		if !s.Cfg.Force {
-			if dirty {
-				result.Skipped = append(result.Skipped, SkippedRepo{
-					Path:   localPath,
-					Reason: "uncommitted changes",
-					Detail: repo.ChangesSummary(),
-				})
-				continue
-			}
-			if currentBranch != defaultBranch {
-				result.Skipped = append(result.Skipped, SkippedRepo{
-					Path:   localPath,
-					Reason: "non-default branch",
-					Detail: "on " + currentBranch,
-				})
-				continue
-			}
-			changed, err := repo.Pull()
-			if err != nil {
-				return result, fmt.Errorf("%s: pull: %w", localPath, err)
-			}
-			if changed {
-				result.Updated = append(result.Updated, RepoResult{Path: localPath, Detail: "pulled"})
-			}
-		} else {
-			var details []string
-			stashed := false
-			if dirty {
-				if err := repo.Stash(); err != nil {
-					return result, fmt.Errorf("%s: stash: %w", localPath, err)
-				}
-				stashed = true
-				details = append(details, "stashed")
-			}
-			if currentBranch != defaultBranch {
-				if err := repo.SwitchBranch(defaultBranch); err != nil {
-					return result, fmt.Errorf("%s: switch branch: %w", localPath, err)
-				}
-				details = append(details, "switched to "+defaultBranch)
-			}
-			changed, err := repo.Pull()
-			if err != nil {
-				return result, fmt.Errorf("%s: pull: %w", localPath, err)
-			}
-			if changed {
-				details = append(details, "pulled")
-			}
-			if stashed {
-				if err := repo.Unstash(); err != nil {
-					return result, fmt.Errorf("%s: unstash: %w", localPath, err)
-				}
-				details = append(details, "unstashed")
-			}
-			if len(details) > 0 {
-				result.Updated = append(result.Updated, RepoResult{Path: localPath, Detail: strings.Join(details, ", ")})
-			}
-		}
+	if err := r.Wait(); err != nil {
+		return result, err
 	}
 
 	allRepos, err := s.findAllGitRepos()
@@ -194,7 +120,7 @@ func (s *Syncer) run() (Result, error) {
 		return result, err
 	}
 	for _, repo := range allRepos {
-		if !existing[repo] {
+		if _, found := existing.Load(repo); !found {
 			fullPath := filepath.Join(s.Cfg.Root, repo)
 			if err := os.RemoveAll(fullPath); err != nil {
 				return result, fmt.Errorf("remove %s: %w", repo, err)
@@ -208,6 +134,116 @@ func (s *Syncer) run() (Result, error) {
 	}
 
 	return result, nil
+}
+
+func (s *Syncer) processRepo(ctx context.Context, localPath, repoPath string, existing *sync.Map, result *Result, mu *sync.Mutex) error {
+	select {
+	case <-ctx.Done():
+		return ctx.Err()
+	default:
+	}
+
+	fullPath := filepath.Join(s.Cfg.Root, localPath)
+	existing.Store(localPath, true)
+
+	if _, err := os.Stat(fullPath); os.IsNotExist(err) {
+		url := repoPathToURL(repoPath)
+		if err := clone(url, fullPath, s.out); err != nil {
+			return fmt.Errorf("clone %s: %w", localPath, err)
+		}
+		mu.Lock()
+		result.Cloned = append(result.Cloned, RepoResult{Path: localPath})
+		mu.Unlock()
+		return nil
+	}
+
+	repo := Repo{Path: fullPath}
+
+	if !repo.IsGitRepo() {
+		return fmt.Errorf("%s: not a git repo", localPath)
+	}
+
+	defaultBranch, err := repo.DefaultBranch()
+	if err != nil {
+		return fmt.Errorf("%s: get default branch: %w", localPath, err)
+	}
+
+	currentBranch, err := repo.CurrentBranch()
+	if err != nil {
+		return fmt.Errorf("%s: get current branch: %w", localPath, err)
+	}
+
+	dirty, err := repo.HasUncommittedChanges()
+	if err != nil {
+		return fmt.Errorf("%s: check uncommitted changes: %w", localPath, err)
+	}
+
+	if !s.Cfg.Force {
+		if dirty {
+			mu.Lock()
+			result.Skipped = append(result.Skipped, SkippedRepo{
+				Path:   localPath,
+				Reason: "uncommitted changes",
+				Detail: repo.ChangesSummary(),
+			})
+			mu.Unlock()
+			return nil
+		}
+		if currentBranch != defaultBranch {
+			mu.Lock()
+			result.Skipped = append(result.Skipped, SkippedRepo{
+				Path:   localPath,
+				Reason: "non-default branch",
+				Detail: "on " + currentBranch,
+			})
+			mu.Unlock()
+			return nil
+		}
+		changed, err := repo.Pull()
+		if err != nil {
+			return fmt.Errorf("%s: pull: %w", localPath, err)
+		}
+		if changed {
+			mu.Lock()
+			result.Updated = append(result.Updated, RepoResult{Path: localPath, Detail: "pulled"})
+			mu.Unlock()
+		}
+	} else {
+		var details []string
+		stashed := false
+		if dirty {
+			if err := repo.Stash(); err != nil {
+				return fmt.Errorf("%s: stash: %w", localPath, err)
+			}
+			stashed = true
+			details = append(details, "stashed")
+		}
+		if currentBranch != defaultBranch {
+			if err := repo.SwitchBranch(defaultBranch); err != nil {
+				return fmt.Errorf("%s: switch branch: %w", localPath, err)
+			}
+			details = append(details, "switched to "+defaultBranch)
+		}
+		changed, err := repo.Pull()
+		if err != nil {
+			return fmt.Errorf("%s: pull: %w", localPath, err)
+		}
+		if changed {
+			details = append(details, "pulled")
+		}
+		if stashed {
+			if err := repo.Unstash(); err != nil {
+				return fmt.Errorf("%s: unstash: %w", localPath, err)
+			}
+			details = append(details, "unstashed")
+		}
+		if len(details) > 0 {
+			mu.Lock()
+			result.Updated = append(result.Updated, RepoResult{Path: localPath, Detail: strings.Join(details, ", ")})
+			mu.Unlock()
+		}
+	}
+	return nil
 }
 
 func (s *Syncer) collectExpectedRepos() (map[string]string, error) {
@@ -361,5 +397,5 @@ func (s *Syncer) updateGitignore(repos map[string]string) error {
 		}
 	}
 
-	return os.WriteFile(gitignorePath, []byte(newContent), 0644)
+	return os.WriteFile(gitignorePath, []byte(newContent), 0o644)
 }
