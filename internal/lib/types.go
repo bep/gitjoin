@@ -11,11 +11,10 @@ type Config struct {
 }
 
 type Result struct {
-	Updated  []RepoResult
-	Cloned   []RepoResult
-	Removed  []string
-	Skipped  []SkippedRepo
-	Warnings []string
+	Updated []RepoResult
+	Cloned  []RepoResult
+	Removed []string
+	Skipped []SkippedRepo
 }
 
 type RepoResult struct {

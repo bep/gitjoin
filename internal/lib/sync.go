@@ -84,13 +84,6 @@ func (s *Syncer) printResult(r Result) {
 			s.log("  - %s (%s)\n", skip.Path, skip.Detail)
 		}
 	}
-
-	if len(r.Warnings) > 0 {
-		s.log("Warnings:\n")
-		for _, w := range r.Warnings {
-			s.log("  - %s\n", w)
-		}
-	}
 }
 
 func (s *Syncer) run() (Result, error) {
@@ -110,8 +103,7 @@ func (s *Syncer) run() (Result, error) {
 		if _, err := os.Stat(fullPath); os.IsNotExist(err) {
 			url := repoPathToURL(repoPath)
 			if err := clone(url, fullPath, s.out); err != nil {
-				result.Warnings = append(result.Warnings, "clone failed: "+localPath+": "+err.Error())
-				continue
+				return result, fmt.Errorf("clone %s: %w", localPath, err)
 			}
 			result.Cloned = append(result.Cloned, RepoResult{Path: localPath})
 			continue
@@ -120,26 +112,22 @@ func (s *Syncer) run() (Result, error) {
 		repo := Repo{Path: fullPath}
 
 		if !repo.IsGitRepo() {
-			result.Warnings = append(result.Warnings, "not a git repo: "+localPath)
-			continue
+			return result, fmt.Errorf("%s: not a git repo", localPath)
 		}
 
 		defaultBranch, err := repo.DefaultBranch()
 		if err != nil {
-			result.Warnings = append(result.Warnings, "could not get default branch: "+localPath+": "+err.Error())
-			continue
+			return result, fmt.Errorf("%s: get default branch: %w", localPath, err)
 		}
 
 		currentBranch, err := repo.CurrentBranch()
 		if err != nil {
-			result.Warnings = append(result.Warnings, "could not get current branch: "+localPath+": "+err.Error())
-			continue
+			return result, fmt.Errorf("%s: get current branch: %w", localPath, err)
 		}
 
 		dirty, err := repo.HasUncommittedChanges()
 		if err != nil {
-			result.Warnings = append(result.Warnings, "could not check for uncommitted changes: "+localPath+": "+err.Error())
-			continue
+			return result, fmt.Errorf("%s: check uncommitted changes: %w", localPath, err)
 		}
 
 		if !s.Cfg.Force {
@@ -161,8 +149,7 @@ func (s *Syncer) run() (Result, error) {
 			}
 			changed, err := repo.Pull()
 			if err != nil {
-				result.Warnings = append(result.Warnings, "pull failed: "+localPath+": "+err.Error())
-				continue
+				return result, fmt.Errorf("%s: pull: %w", localPath, err)
 			}
 			if changed {
 				result.Updated = append(result.Updated, RepoResult{Path: localPath, Detail: "pulled"})
@@ -172,33 +159,29 @@ func (s *Syncer) run() (Result, error) {
 			stashed := false
 			if dirty {
 				if err := repo.Stash(); err != nil {
-					result.Warnings = append(result.Warnings, "stash failed: "+localPath+": "+err.Error())
-					continue
+					return result, fmt.Errorf("%s: stash: %w", localPath, err)
 				}
 				stashed = true
 				details = append(details, "stashed")
 			}
 			if currentBranch != defaultBranch {
 				if err := repo.SwitchBranch(defaultBranch); err != nil {
-					result.Warnings = append(result.Warnings, "switch branch failed: "+localPath+": "+err.Error())
-					continue
+					return result, fmt.Errorf("%s: switch branch: %w", localPath, err)
 				}
 				details = append(details, "switched to "+defaultBranch)
 			}
 			changed, err := repo.Pull()
 			if err != nil {
-				result.Warnings = append(result.Warnings, "pull failed: "+localPath+": "+err.Error())
-				continue
+				return result, fmt.Errorf("%s: pull: %w", localPath, err)
 			}
 			if changed {
 				details = append(details, "pulled")
 			}
 			if stashed {
 				if err := repo.Unstash(); err != nil {
-					result.Warnings = append(result.Warnings, "unstash failed (conflicts?): "+localPath+": "+err.Error())
-				} else {
-					details = append(details, "unstashed")
+					return result, fmt.Errorf("%s: unstash: %w", localPath, err)
 				}
+				details = append(details, "unstashed")
 			}
 			if len(details) > 0 {
 				result.Updated = append(result.Updated, RepoResult{Path: localPath, Detail: strings.Join(details, ", ")})
@@ -214,15 +197,14 @@ func (s *Syncer) run() (Result, error) {
 		if !existing[repo] {
 			fullPath := filepath.Join(s.Cfg.Root, repo)
 			if err := os.RemoveAll(fullPath); err != nil {
-				result.Warnings = append(result.Warnings, "remove failed: "+repo+": "+err.Error())
-				continue
+				return result, fmt.Errorf("remove %s: %w", repo, err)
 			}
 			result.Removed = append(result.Removed, repo)
 		}
 	}
 
 	if err := s.updateGitignore(expected); err != nil {
-		result.Warnings = append(result.Warnings, "failed to update .gitignore: "+err.Error())
+		return result, fmt.Errorf("update .gitignore: %w", err)
 	}
 
 	return result, nil
