@@ -1,4 +1,7 @@
 
+dostounix golden/tree1.txt
+dostounix golden/tree2.txt
+
 gitjoin
 ! stdout .
 stderr 'Cloned: 2 repos'

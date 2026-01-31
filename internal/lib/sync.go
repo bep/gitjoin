@@ -320,5 +320,8 @@ func repoPathToURL(repoPath string) string {
 	if len(parts) != 2 {
 		return ""
 	}
+	if os.Getenv("GITHUB_ACTIONS") != "" {
+		return fmt.Sprintf("https://%s/%s.git", parts[0], parts[1])
+	}
 	return fmt.Sprintf("git@%s:%s.git", parts[0], parts[1])
 }

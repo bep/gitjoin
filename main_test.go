@@ -4,6 +4,7 @@
 package main
 
 import (
+	"bytes"
 	"fmt"
 	"io/fs"
 	"os"
@@ -31,10 +32,12 @@ func TestMain(m *testing.M) {
 
 func testSetupFunc() func(env *testscript.Env) error {
 	sourceDir, _ := os.Getwd()
+	isGitHubActions := os.Getenv("GITHUB_ACTIONS") != ""
 	return func(env *testscript.Env) error {
 		var keyVals []string
 		// Add some environment variables to the test script.
 		keyVals = append(keyVals, "SOURCE", sourceDir)
+		keyVals = append(keyVals, "GITHUB_ACTIONS", fmt.Sprintf("%v", isGitHubActions))
 		envhelpers.SetEnvVars(&env.Vars, keyVals...)
 
 		return nil
@@ -129,6 +132,18 @@ var commonTestScriptsParam = testscript.Params{
 			_, err = f.WriteString("\n" + text)
 			if err != nil {
 				ts.Fatalf("failed to write to file: %v", err)
+			}
+		},
+		// dostounix converts \r\n to \n.
+		"dostounix": func(ts *testscript.TestScript, neg bool, args []string) {
+			filename := ts.MkAbs(args[0])
+			b, err := os.ReadFile(filename)
+			if err != nil {
+				ts.Fatalf("%v", err)
+			}
+			b = bytes.Replace(b, []byte("\r\n"), []byte{'\n'}, -1)
+			if err := os.WriteFile(filename, b, 0o666); err != nil {
+				ts.Fatalf("%v", err)
 			}
 		},
 	},
