@@ -1,0 +1,50 @@
+
+gitjoin
+! stdout .
+stderr 'Cloned: 2 repos'
+! stderr 'Skipped'
+! stderr 'Updated'
+! stderr 'Warnings'
+
+tree gocode
+cp stdout gocodetree.txt
+cmp gocodetree.txt golden/tree1.txt
+
+append gocode/libs/lazycache/README.md changed
+gitjoin
+! stdout .
+stderr 'Skipped.*1 repos'
+! stderr 'Cloned'
+! stderr 'Updated'
+
+mkdir gocode/main
+cp testdata/gitjoin1.txt  gocode/main/gitjoin.txt
+
+gitjoin
+! stdout .
+! stderr 'Warnings'
+stderr 'Cloned: 1 repos'
+stderr 'Skipped.*1 repos'
+! stderr 'Updated'
+
+tree gocode
+cp stdout gocodetree.txt
+cmp gocodetree.txt golden/tree2.txt
+
+-- gocode/libs/gitjoin.txt --
+github.com/bep/lazycache
+github.com/bep/debounce
+-- golden/tree1.txt --
+. (unknown)
+└─gitjoin:libs/
+  └─git:debounce/
+  └─git:lazycache/
+-- golden/tree2.txt --
+. (unknown)
+└─gitjoin:libs/
+  └─git:debounce/
+  └─git:lazycache/
+└─gitjoin:main/
+  └─git:firstupdotenv/
+-- testdata/gitjoin1.txt --
+github.com/bep/firstupdotenv

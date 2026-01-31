@@ -1,4 +1,4 @@
-# See https://pkg.go.dev/github.com/rogpeppe/go-internal/testscript
-
-gitjoin 'This is a test.'
-stdout 'This is a test.'
+# Running without any gitjoin.txt should produce no output
+gitjoin
+! stdout .
+! stderr .

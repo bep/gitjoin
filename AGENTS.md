@@ -6,3 +6,4 @@
    * Use short variable names when the context is clear.
 * Never export symbols that's not needed outside of the package.
 * Avoid global state at (almost) all cost.
+* Confirm by running `check.sh`.
