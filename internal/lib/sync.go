@@ -359,7 +359,7 @@ func (s *Syncer) updateGitignore(repos map[string]string) error {
 
 	var paths []string
 	for localPath := range repos {
-		paths = append(paths, localPath+"/")
+		paths = append(paths, filepath.ToSlash(localPath)+"/")
 	}
 	sort.Strings(paths)
 

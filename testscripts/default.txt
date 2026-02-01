@@ -2,6 +2,7 @@
 dostounix golden/tree1.txt
 dostounix golden/tree2.txt
 dostounix golden/gitignore1.txt
+dostounix golden/gitignore2.txt
 
 gitjoin
 ! stdout .
