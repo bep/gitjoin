@@ -25,7 +25,20 @@ func (r Repo) IsGitRepo() bool {
 func (r Repo) DefaultBranch() (string, error) {
 	out, err := r.run("symbolic-ref", "refs/remotes/origin/HEAD")
 	if err != nil {
-		return "", err
+		// origin/HEAD not set; query the remote directly.
+		out, err = r.run("ls-remote", "--symref", "origin", "HEAD")
+		if err != nil {
+			return "", err
+		}
+		// Output: "ref: refs/heads/main\tHEAD\n..."
+		for _, line := range strings.Split(out, "\n") {
+			if b, ok := strings.CutPrefix(line, "ref: refs/heads/"); ok {
+				if b, _, ok := strings.Cut(b, "\t"); ok {
+					return b, nil
+				}
+			}
+		}
+		return "", fmt.Errorf("could not parse default branch from ls-remote")
 	}
 	parts := strings.Split(strings.TrimSpace(out), "/")
 	if len(parts) == 0 {
