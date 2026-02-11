@@ -31,7 +31,7 @@ func (r Repo) DefaultBranch() (string, error) {
 			return "", err
 		}
 		// Output: "ref: refs/heads/main\tHEAD\n..."
-		for _, line := range strings.Split(out, "\n") {
+		for line := range strings.SplitSeq(out, "\n") {
 			if b, ok := strings.CutPrefix(line, "ref: refs/heads/"); ok {
 				if b, _, ok := strings.Cut(b, "\t"); ok {
 					return b, nil
