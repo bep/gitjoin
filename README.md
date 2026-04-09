@@ -1,38 +1,57 @@
-I have hundreds of Git repositories hosted on GitHub. Different technologies (Go libraries/apps, web apps/sites etc.) and domains. Having them in separate repositories makes perfect sense. Until I want to operate on or configure all or a subset of them as a whole.
+A CLI tool for managing multiple Git repositories as a unified workspace. Define your repos in `gitjoin.txt` files, and Gitjoin will clone, pull, and prune them for you.
 
-Configuration examples could be common `AGENTS.md` for all Go repositories, or common [API keys](https://github.com/bep/firstupdotenv) for all AWS applications.
+Install via:
 
-Operation examples could be update dependencies in all Go repos (or a selection using a `--paths `go/**/foo` flag), prompt an AI agent to make certain changes/fixes and then create PRs in the respective repos.
+```
+go install github.com/bep/gitjoin@latest
+```
 
-This would obviously be a great tool for getting dev teams up and running with the same project structure(s). One example Git view could look like:
+## Why
+
+If you have hundreds of Git repositories across different technologies and domains, keeping them in separate repositories makes sense — until you need to operate on or configure all (or a subset) of them as a whole.
+
+Examples:
+
+* Share a common `AGENTS.md` across all Go repositories.
+* Share common [API keys](https://github.com/bep/firstupdotenv) across all AWS applications.
+* Update dependencies in all Go repos (or a subset using `--paths "go/**/foo"`).
+* Prompt an AI agent to make changes across repos and create PRs.
+
+## Tree structure
 
 ```
 .
 ├── go
-│   ├── AGENTS.md
-│   ├── apps
-│   │   └── gitjoin.txt
-│   ├── firstup.env
-│   └── libs
-│       └── gitjoin.txt
+│   ├── AGENTS.md
+│   ├── apps
+│   │   └── gitjoin.txt
+│   ├── firstup.env
+│   └── libs
+│       └── gitjoin.txt
 └── sites
     ├── AGENTS.md
     ├── firstup.env
     └── gitjoin.txt
 ```
 
-* `gitjoin.txt` contains one Git repository path per line (e.g. `github.com/bep/s3deploy`). Lines starting with `#` are comments.
-* `firstup.env` would contain environment variables needed for that branch (see [firstupdotenv](https://github.com/bep/firstupdotenv), typically using `op://Dev/myapp/keys` for API keys, so we can commit this structure to Git.
-* `AGENTS.md` would be the AI agent guide for that branch.
-* The cloned content will be in `.gitignore`.
+* `gitjoin.txt` — one Git repository path per line (e.g. `github.com/bep/s3deploy`). Lines starting with `#` are comments.
+* `firstup.env` — environment variables for that branch (see [firstupdotenv](https://github.com/bep/firstupdotenv)), typically referencing `op://` paths so you can commit this to Git.
+* `AGENTS.md` — AI agent guide for that branch.
+* Cloned repo content is automatically added to `.gitignore`.
 
-I think it would make sense to have some built in commands in the tool itself. Installable via `go install github.com/bep/gitjoin@latest`.
+## Usage
 
-The default command (`get`?) would _update_ the tree according to `gitjoin.txt`: Remove repos no longer in use, clone repos not existing locally, update repos.
+Running `gitjoin` from the workspace root syncs all repositories defined in `gitjoin.txt` files: clones missing repos, pulls updates for existing ones, and removes repos no longer listed.
 
-## Default command behavior
+### Flags
 
-### Without flags
+| Flag | Description |
+|------|-------------|
+| `--force` | Force sync (see below) |
+| `--quiet` | Suppress output |
+| `--paths` | Glob filter for repo paths (e.g. `"go/**/foo"`) |
+
+### Default behavior
 
 | Condition | Action |
 |-----------|--------|
