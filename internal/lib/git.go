@@ -114,9 +114,25 @@ func (r Repo) Pull() (changed bool, err error) {
 	return headBefore != headAfter, nil
 }
 
-func (r Repo) Stash() error {
-	_, err := r.run("stash", "push", "-m", "gitjoin")
-	return err
+func (r Repo) hasUnmergedPaths() (bool, error) {
+	out, err := r.run("status", "--porcelain")
+	if err != nil {
+		return false, err
+	}
+	for line := range strings.SplitSeq(out, "\n") {
+		if len(line) >= 2 && (line[0] == 'U' || line[1] == 'U') {
+			return true, nil
+		}
+	}
+	return false, nil
+}
+
+func (r Repo) Stash() (bool, error) {
+	out, err := r.run("stash", "push", "-m", "gitjoin")
+	if err != nil {
+		return false, err
+	}
+	return !strings.Contains(out, "No local changes to save"), nil
 }
 
 func (r Repo) Unstash() error {

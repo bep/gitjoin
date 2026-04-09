@@ -212,11 +212,20 @@ func (s *Syncer) processRepo(ctx context.Context, localPath, repoPath string, ex
 		var details []string
 		stashed := false
 		if dirty {
-			if err := repo.Stash(); err != nil {
+			unmerged, err := repo.hasUnmergedPaths()
+			if err != nil {
+				return fmt.Errorf("%s: check unmerged paths: %w", localPath, err)
+			}
+			if unmerged {
+				return fmt.Errorf("%s: has unmerged paths; resolve the merge conflict before syncing", localPath)
+			}
+			stashed, err = repo.Stash()
+			if err != nil {
 				return fmt.Errorf("%s: stash: %w", localPath, err)
 			}
-			stashed = true
-			details = append(details, "stashed")
+			if stashed {
+				details = append(details, "stashed")
+			}
 		}
 		if currentBranch != defaultBranch {
 			if err := repo.SwitchBranch(defaultBranch); err != nil {
