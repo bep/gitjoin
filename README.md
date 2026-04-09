@@ -41,7 +41,7 @@ Examples:
 
 ## Usage
 
-Running `gitjoin` from the workspace root syncs all repositories defined in `gitjoin.txt` files: clones missing repos, pulls updates for existing ones, and removes repos no longer listed.
+Running `gitjoin` from the workspace root syncs all repositories defined in `gitjoin.txt` files recursively: clones missing repos, pulls updates for existing ones, and removes repos no longer listed. Note that you can start at any subdirectory with a `gitjoin.txt` to sync just that subtree.
 
 ### Flags
 
