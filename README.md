@@ -17,6 +17,19 @@ Examples:
 * Update dependencies in all Go repos (or a subset using `--paths "go/**/foo"`).
 * Prompt an AI agent to make changes across repos and create PRs.
 
+## Why not use Git Submodules instead?
+
+Git Submodules track a specific commit in each sub-repo and embed that reference in the parent. This is the right tool when you need a **pinned, reproducible** dependency tree — but it's the wrong tool when your goal is a **workspace of independent repos** you want to keep up to date.
+
+Gitjoin treats the listed repos as peers, not dependencies:
+
+* No commit in the parent repo when a child repo changes.
+* No detached-HEAD checkouts — every repo stays on its default branch.
+* Adding or removing a repo is a one-line edit in `gitjoin.txt`, not a Git operation.
+* Shared configuration files (`AGENTS.md`, `firstup.env`, …) sit alongside the repos without being wired into their history.
+
+If you need version-pinning, use submodules. If you need a convenient umbrella for many repos you actively develop, Gitjoin is a better fit.
+
 ## Tree structure
 
 ```
