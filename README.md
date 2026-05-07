@@ -34,6 +34,8 @@ If you need version-pinning, use submodules. If you need a convenient umbrella f
 
 ```
 .
+├── AGENTS.md
+├── CLAUDE.md
 ├── go
 │   ├── AGENTS.md
 │   ├── apps
@@ -50,7 +52,16 @@ If you need version-pinning, use submodules. If you need a convenient umbrella f
 * `gitjoin.txt` — one Git repository path per line (e.g. `github.com/bep/s3deploy`). Lines starting with `#` are comments.
 * `firstup.env` — environment variables for that branch (see [firstupdotenv](https://github.com/bep/firstupdotenv)), typically referencing `op://` paths so you can commit this to Git.
 * `AGENTS.md` — AI agent guide for that branch.
+* `CLAUDE.md` — one-liner `@AGENTS.md` so Claude Code reads `AGENTS.md`.
 * Cloned repo content is automatically added to `.gitignore`.
+
+## Agent instructions
+
+An `AGENTS.md` (paired with a one-line `CLAUDE.md` containing `@AGENTS.md`) at any directory applies to that whole subtree automatically. Claude Code walks up from the current directory and concatenates every ancestor `CLAUDE.md` it finds, so an `AGENTS.md` at the workspace root reaches every subdirectory — including inside the cloned repos. No syncing or copying. Each level can add to its ancestors; e.g. `go/AGENTS.md` layers Go-specific rules on top of a workspace-root `AGENTS.md`.
+
+The split — `AGENTS.md` for the content, `CLAUDE.md` as a one-line `@AGENTS.md` import — is the cross-tool convention: Claude Code reads `CLAUDE.md`, while AGENTS.md-aware tools (Codex, Cursor, …) read `AGENTS.md` directly.
+
+See <https://docs.claude.com/en/docs/claude-code/memory> for the underlying mechanics.
 
 ## Usage
 
