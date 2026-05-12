@@ -1,8 +1,9 @@
 
 dostounix golden/tree1.txt
 dostounix golden/tree2.txt
-dostounix golden/gitignore1.txt
-dostounix golden/gitignore2.txt
+dostounix golden/libs-gitignore1.txt
+dostounix golden/main-gitignore2.txt
+dostounix golden/libs-gitignore-empty.txt
 
 gitjoin
 ! stdout .
@@ -11,7 +12,10 @@ stderr 'Cloned: 2 repos'
 ! stderr 'Updated'
 ! stderr 'Warnings'
 
-cmp .gitignore golden/gitignore1.txt
+# .gitignore is written next to the gitjoin.txt that lists the repos,
+# not at the workspace root.
+! exists .gitignore
+cmp gocode/libs/.gitignore golden/libs-gitignore1.txt
 
 tree gocode
 cp stdout gocodetree.txt
@@ -24,8 +28,10 @@ stderr 'Skipped.*1 repos'
 ! stderr 'Cloned'
 ! stderr 'Updated'
 
+# Creating a new folder with a gitjoin.txt should create a sibling .gitignore.
 mkdir gocode/main
 cp testdata/gitjoin1.txt  gocode/main/gitjoin.txt
+! exists gocode/main/.gitignore
 
 gitjoin
 ! stdout .
@@ -34,11 +40,32 @@ stderr 'Cloned: 1 repos'
 stderr 'Skipped.*1 repos'
 ! stderr 'Updated'
 
+exists gocode/main/.gitignore
+
 tree gocode
 cp stdout gocodetree.txt
 cmp gocodetree.txt golden/tree2.txt
 
-cmp .gitignore golden/gitignore2.txt
+! exists .gitignore
+cmp gocode/libs/.gitignore golden/libs-gitignore1.txt
+cmp gocode/main/.gitignore golden/main-gitignore2.txt
+
+# A .gitignore with a stale managed section (no sibling gitjoin.txt) should be
+# pruned on the next sync.
+cp testdata/stale-gitignore.txt .gitignore
+exists .gitignore
+
+# Emptying gocode/libs/gitjoin.txt removes its repos and leaves an empty
+# managed section in the sibling .gitignore (the gitjoin.txt is still there).
+cp testdata/empty-gitjoin.txt gocode/libs/gitjoin.txt
+
+gitjoin
+! stdout .
+stderr 'Removed: 2 repos'
+
+! exists .gitignore
+cmp gocode/libs/.gitignore golden/libs-gitignore-empty.txt
+cmp gocode/main/.gitignore golden/main-gitignore2.txt
 
 -- gocode/libs/gitjoin.txt --
 github.com/bep/lazycache
@@ -57,14 +84,21 @@ github.com/bep/debounce
   └─git:firstupdotenv/
 -- testdata/gitjoin1.txt --
 github.com/bep/firstupdotenv
--- golden/gitignore1.txt --
+-- testdata/empty-gitjoin.txt --
+# no repos
+-- testdata/stale-gitignore.txt --
 # Managed by gitjoin - do not edit this section
-gocode/libs/debounce/
-gocode/libs/lazycache/
+something/stale/
 # End gitjoin managed section
--- golden/gitignore2.txt --
+-- golden/libs-gitignore1.txt --
 # Managed by gitjoin - do not edit this section
-gocode/libs/debounce/
-gocode/libs/lazycache/
-gocode/main/firstupdotenv/
+debounce/
+lazycache/
+# End gitjoin managed section
+-- golden/main-gitignore2.txt --
+# Managed by gitjoin - do not edit this section
+firstupdotenv/
+# End gitjoin managed section
+-- golden/libs-gitignore-empty.txt --
+# Managed by gitjoin - do not edit this section
 # End gitjoin managed section
