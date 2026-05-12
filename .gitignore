@@ -15,3 +15,5 @@
 # vendor/
 
 gitjoin
+
+.claude/

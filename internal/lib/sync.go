@@ -96,7 +96,11 @@ func (s *Syncer) run() (Result, error) {
 	var mu sync.Mutex
 	var existing sync.Map
 
-	expected, err := s.collectExpectedRepos()
+	sources, err := s.collectSources()
+	if err != nil {
+		return result, err
+	}
+	expected, err := s.expectedFromSources(sources)
 	if err != nil {
 		return result, err
 	}
@@ -129,7 +133,7 @@ func (s *Syncer) run() (Result, error) {
 		}
 	}
 
-	if err := s.updateGitignore(expected); err != nil {
+	if err := s.updateGitignores(sources); err != nil {
 		return result, fmt.Errorf("update .gitignore: %w", err)
 	}
 
@@ -255,8 +259,13 @@ func (s *Syncer) processRepo(ctx context.Context, localPath, repoPath string, ex
 	return nil
 }
 
-func (s *Syncer) collectExpectedRepos() (map[string]string, error) {
-	expected := make(map[string]string)
+type gitjoinSource struct {
+	dir   string
+	repos []string
+}
+
+func (s *Syncer) collectSources() ([]gitjoinSource, error) {
+	var sources []gitjoinSource
 
 	err := filepath.WalkDir(s.Cfg.Root, func(path string, d os.DirEntry, err error) error {
 		if err != nil {
@@ -280,19 +289,29 @@ func (s *Syncer) collectExpectedRepos() (map[string]string, error) {
 			return err
 		}
 
-		for _, repo := range repos {
+		sources = append(sources, gitjoinSource{dir: relDir, repos: repos})
+		return nil
+	})
+
+	return sources, err
+}
+
+func (s *Syncer) expectedFromSources(sources []gitjoinSource) (map[string]string, error) {
+	expected := make(map[string]string)
+	for _, src := range sources {
+		for _, repo := range src.repos {
 			repoName := filepath.Base(repo)
 			var localPath string
-			if relDir == "." {
+			if src.dir == "." {
 				localPath = repoName
 			} else {
-				localPath = filepath.Join(relDir, repoName)
+				localPath = filepath.Join(src.dir, repoName)
 			}
 
 			if s.Cfg.Paths != "" {
 				matched, err := filepath.Match(s.Cfg.Paths, localPath)
 				if err != nil {
-					return err
+					return nil, err
 				}
 				if !matched {
 					continue
@@ -301,10 +320,8 @@ func (s *Syncer) collectExpectedRepos() (map[string]string, error) {
 
 			expected[localPath] = repo
 		}
-		return nil
-	})
-
-	return expected, err
+	}
+	return expected, nil
 }
 
 func (s *Syncer) findAllGitRepos() ([]string, error) {
@@ -363,19 +380,30 @@ const (
 	gitignoreEnd   = "# End gitjoin managed section"
 )
 
-func (s *Syncer) updateGitignore(repos map[string]string) error {
-	gitignorePath := filepath.Join(s.Cfg.Root, ".gitignore")
-
-	var paths []string
-	for localPath := range repos {
-		paths = append(paths, filepath.ToSlash(localPath)+"/")
+func (s *Syncer) updateGitignores(sources []gitjoinSource) error {
+	managedDirs := make(map[string]bool)
+	for _, src := range sources {
+		managedDirs[src.dir] = true
+		if err := s.writeManagedSection(src); err != nil {
+			return err
+		}
 	}
-	sort.Strings(paths)
+	return s.pruneStaleManaged(managedDirs)
+}
+
+func (s *Syncer) writeManagedSection(src gitjoinSource) error {
+	gitignorePath := filepath.Join(s.Cfg.Root, src.dir, ".gitignore")
+
+	var entries []string
+	for _, repo := range src.repos {
+		entries = append(entries, filepath.Base(repo)+"/")
+	}
+	sort.Strings(entries)
 
 	var managed strings.Builder
 	managed.WriteString(gitignoreStart + "\n")
-	for _, p := range paths {
-		managed.WriteString(p + "\n")
+	for _, e := range entries {
+		managed.WriteString(e + "\n")
 	}
 	managed.WriteString(gitignoreEnd + "\n")
 
@@ -407,4 +435,54 @@ func (s *Syncer) updateGitignore(repos map[string]string) error {
 	}
 
 	return os.WriteFile(gitignorePath, []byte(newContent), 0o644)
+}
+
+func (s *Syncer) pruneStaleManaged(managedDirs map[string]bool) error {
+	return filepath.WalkDir(s.Cfg.Root, func(path string, d os.DirEntry, err error) error {
+		if err != nil {
+			return err
+		}
+		if d.IsDir() && d.Name() == ".git" {
+			return filepath.SkipDir
+		}
+		if d.IsDir() || d.Name() != ".gitignore" {
+			return nil
+		}
+		relDir, err := filepath.Rel(s.Cfg.Root, filepath.Dir(path))
+		if err != nil {
+			return err
+		}
+		if managedDirs[relDir] {
+			return nil
+		}
+		return removeManagedSection(path)
+	})
+}
+
+func removeManagedSection(gitignorePath string) error {
+	existing, err := os.ReadFile(gitignorePath)
+	if err != nil {
+		return err
+	}
+	content := string(existing)
+	startIdx := strings.Index(content, gitignoreStart)
+	endIdx := strings.Index(content, gitignoreEnd)
+	if startIdx < 0 || endIdx <= startIdx {
+		return nil
+	}
+	endIdx += len(gitignoreEnd)
+	if endIdx < len(content) && content[endIdx] == '\n' {
+		endIdx++
+	}
+	for startIdx > 0 && content[startIdx-1] == '\n' {
+		startIdx--
+	}
+	result := content[:startIdx] + content[endIdx:]
+	if strings.TrimSpace(result) == "" {
+		return os.Remove(gitignorePath)
+	}
+	if !strings.HasSuffix(result, "\n") {
+		result += "\n"
+	}
+	return os.WriteFile(gitignorePath, []byte(result), 0o644)
 }
