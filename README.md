@@ -17,6 +17,9 @@ Examples:
 * Update dependencies in all Go repos (or a subset using `--paths "go/**/foo"`).
 * Prompt an AI agent to make changes across repos and create PRs.
 
+> [!TIP]
+> [grrep](https://github.com/bep/grrep) works great with Gitjoin as it understands its boundaries.
+
 ## Why not use Git Submodules instead?
 
 Git Submodules track a specific commit in each sub-repo and embed that reference in the parent. This is the right tool when you need a **pinned, reproducible** dependency tree — but it's the wrong tool when your goal is a **workspace of independent repos** you want to keep up to date.
