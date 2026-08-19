@@ -67,6 +67,15 @@ stderr 'Removed: 2 repos'
 cmp gocode/libs/.gitignore golden/libs-gitignore-empty.txt
 cmp gocode/main/.gitignore golden/main-gitignore2.txt
 
+# Git repos not recorded in a managed .gitignore section (e.g. nested build
+# artifacts) must not be removed.
+mkdir gocode/libs/notmanaged/.git
+mkdir gocode/main/firstupdotenv/nested/.git
+gitjoin
+! stderr 'Removed'
+exists gocode/libs/notmanaged/.git
+exists gocode/main/firstupdotenv/nested/.git
+
 -- gocode/libs/gitjoin.txt --
 github.com/bep/lazycache
 github.com/bep/debounce

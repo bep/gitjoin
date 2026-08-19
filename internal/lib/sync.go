@@ -119,18 +119,31 @@ func (s *Syncer) run() (Result, error) {
 		return result, err
 	}
 
-	allRepos, err := s.findAllGitRepos()
+	managed, err := s.findManagedRepos()
 	if err != nil {
 		return result, err
 	}
-	for _, repo := range allRepos {
-		if _, found := existing.Load(repo); !found {
-			fullPath := filepath.Join(s.Cfg.Root, repo)
-			if err := os.RemoveAll(fullPath); err != nil {
-				return result, fmt.Errorf("remove %s: %w", repo, err)
-			}
-			result.Removed = append(result.Removed, repo)
+	for _, repo := range managed {
+		if _, found := existing.Load(repo); found {
+			continue
 		}
+		if s.Cfg.Paths != "" {
+			matched, err := filepath.Match(s.Cfg.Paths, repo)
+			if err != nil {
+				return result, err
+			}
+			if !matched {
+				continue
+			}
+		}
+		fullPath := filepath.Join(s.Cfg.Root, repo)
+		if !(Repo{Path: fullPath}).IsGitRepo() {
+			continue
+		}
+		if err := os.RemoveAll(fullPath); err != nil {
+			return result, fmt.Errorf("remove %s: %w", repo, err)
+		}
+		result.Removed = append(result.Removed, repo)
 	}
 
 	if err := s.updateGitignores(sources); err != nil {
@@ -324,25 +337,64 @@ func (s *Syncer) expectedFromSources(sources []gitjoinSource) (map[string]string
 	return expected, nil
 }
 
-func (s *Syncer) findAllGitRepos() ([]string, error) {
+// findManagedRepos returns the repos recorded in gitjoin-managed .gitignore
+// sections. Only these are candidates for removal; git repos gitjoin never
+// cloned (e.g. build artifacts) are left alone.
+func (s *Syncer) findManagedRepos() ([]string, error) {
 	var repos []string
 	err := filepath.WalkDir(s.Cfg.Root, func(path string, d os.DirEntry, err error) error {
 		if err != nil {
 			return err
 		}
 		if d.IsDir() && d.Name() == ".git" {
-			rel, err := filepath.Rel(s.Cfg.Root, filepath.Dir(path))
-			if err != nil {
-				return err
-			}
-			if rel != "." {
-				repos = append(repos, rel)
-			}
 			return filepath.SkipDir
+		}
+		if d.IsDir() || d.Name() != ".gitignore" {
+			return nil
+		}
+		entries, err := readManagedEntries(path)
+		if err != nil {
+			return err
+		}
+		if len(entries) == 0 {
+			return nil
+		}
+		relDir, err := filepath.Rel(s.Cfg.Root, filepath.Dir(path))
+		if err != nil {
+			return err
+		}
+		for _, e := range entries {
+			if relDir == "." {
+				repos = append(repos, e)
+			} else {
+				repos = append(repos, filepath.Join(relDir, e))
+			}
 		}
 		return nil
 	})
 	return repos, err
+}
+
+func readManagedEntries(gitignorePath string) ([]string, error) {
+	b, err := os.ReadFile(gitignorePath)
+	if err != nil {
+		return nil, err
+	}
+	content := string(b)
+	startIdx := strings.Index(content, gitignoreStart)
+	endIdx := strings.Index(content, gitignoreEnd)
+	if startIdx < 0 || endIdx <= startIdx {
+		return nil, nil
+	}
+	var entries []string
+	for line := range strings.SplitSeq(content[startIdx+len(gitignoreStart):endIdx], "\n") {
+		line = strings.TrimSpace(line)
+		if line == "" || strings.HasPrefix(line, "#") {
+			continue
+		}
+		entries = append(entries, strings.TrimSuffix(line, "/"))
+	}
+	return entries, nil
 }
 
 func parseGitjoinFile(path string) ([]string, error) {
