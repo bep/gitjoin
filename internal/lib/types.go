@@ -7,7 +7,6 @@ type Config struct {
 	Root  string
 	Force bool
 	Quiet bool
-	Paths string // glob filter (optional)
 }
 
 type Result struct {

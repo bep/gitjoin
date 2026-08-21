@@ -127,15 +127,6 @@ func (s *Syncer) run() (Result, error) {
 		if _, found := existing.Load(repo); found {
 			continue
 		}
-		if s.Cfg.Paths != "" {
-			matched, err := filepath.Match(s.Cfg.Paths, repo)
-			if err != nil {
-				return result, err
-			}
-			if !matched {
-				continue
-			}
-		}
 		fullPath := filepath.Join(s.Cfg.Root, repo)
 		if !(Repo{Path: fullPath}).IsGitRepo() {
 			continue
@@ -319,16 +310,6 @@ func (s *Syncer) expectedFromSources(sources []gitjoinSource) (map[string]string
 				localPath = repoName
 			} else {
 				localPath = filepath.Join(src.dir, repoName)
-			}
-
-			if s.Cfg.Paths != "" {
-				matched, err := filepath.Match(s.Cfg.Paths, localPath)
-				if err != nil {
-					return nil, err
-				}
-				if !matched {
-					continue
-				}
 			}
 
 			expected[localPath] = repo

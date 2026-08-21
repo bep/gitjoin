@@ -23,7 +23,6 @@ func run() error {
 
 	flag.BoolVar(&cfg.Force, "force", false, "force sync: stash changes, switch to default branch")
 	flag.BoolVar(&cfg.Quiet, "quiet", false, "suppress all output")
-	flag.StringVar(&cfg.Paths, "paths", "", "glob filter for repo paths")
 	flag.Parse()
 
 	wd, err := os.Getwd()

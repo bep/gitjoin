@@ -14,7 +14,7 @@ Examples:
 
 * Share a common `AGENTS.md` across all Go repositories.
 * Share common [API keys](https://github.com/bep/firstupdotenv) across all AWS applications.
-* Update dependencies in all Go repos (or a subset using `--paths "go/**/foo"`).
+* Update dependencies in all Go repos.
 * Prompt an AI agent to make changes across repos and create PRs.
 
 > [!TIP]
@@ -65,7 +65,6 @@ Running `gitjoin` from the workspace root syncs all repositories defined in `git
 |------|-------------|
 | `--force` | Force sync (see below) |
 | `--quiet` | Suppress output |
-| `--paths` | Glob filter for repo paths (e.g. `"go/**/foo"`) |
 
 ### Default behavior
 
