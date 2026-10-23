@@ -101,12 +101,12 @@ something/stale/
 # End gitjoin managed section
 -- golden/libs-gitignore1.txt --
 # Managed by gitjoin - do not edit this section
-debounce/
-lazycache/
+/debounce/
+/lazycache/
 # End gitjoin managed section
 -- golden/main-gitignore2.txt --
 # Managed by gitjoin - do not edit this section
-firstupdotenv/
+/firstupdotenv/
 # End gitjoin managed section
 -- golden/libs-gitignore-empty.txt --
 # Managed by gitjoin - do not edit this section

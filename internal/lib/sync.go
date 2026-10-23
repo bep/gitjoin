@@ -373,7 +373,7 @@ func readManagedEntries(gitignorePath string) ([]string, error) {
 		if line == "" || strings.HasPrefix(line, "#") {
 			continue
 		}
-		entries = append(entries, strings.TrimSuffix(line, "/"))
+		entries = append(entries, strings.Trim(line, "/"))
 	}
 	return entries, nil
 }
@@ -429,7 +429,7 @@ func (s *Syncer) writeManagedSection(src gitjoinSource) error {
 
 	var entries []string
 	for _, repo := range src.repos {
-		entries = append(entries, filepath.Base(repo)+"/")
+		entries = append(entries, "/"+filepath.Base(repo)+"/")
 	}
 	sort.Strings(entries)
 
