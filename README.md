@@ -14,6 +14,7 @@ Examples:
 
 * Share a common `AGENTS.md` across all Go repositories.
 * Share common [API keys](https://github.com/bep/firstupdotenv) across all AWS applications.
+* Store per branch context managed by [mycontext](https://github.com/bep/mycontext).
 * Update dependencies in all Go repos.
 * Prompt an AI agent to make changes across repos and create PRs.
 
